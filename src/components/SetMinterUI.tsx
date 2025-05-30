@@ -1,66 +1,120 @@
-import React, { useState } from "react";
-import { ethers } from "ethers";
-import abi from "../abi/VerigoNFT.json"; // Make sure path is correct
+import React, { useState, FormEvent } from "react";
 
-const CONTRACT_ADDRESS = "0x64184a2593294331167F8087d98Aa59705a56446"; // Replace with your deployed contract address
+interface ApiResponse {
+  success: boolean;
+  txHash?: string;
+  error?: string;
+}
 
-const SetMinterUI = () => {
-  const [minterAddress, setMinterAddress] = useState("");
-  const [isMinterStatus, setIsMinterStatus] = useState(true);
-  const [statusMsg, setStatusMsg] = useState("");
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    maxWidth: 400,
+    margin: "auto",
+    backgroundColor: "#f9f9f9",
+    padding: 20,
+    borderRadius: 10,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  heading: {
+    marginBottom: 15,
+    fontWeight: "bold",
+  },
+  input: {
+    width: "100%",
+    padding: "8px 12px",
+    marginBottom: 12,
+    borderRadius: 5,
+    border: "1px solid #ccc",
+    fontSize: 14,
+    boxSizing: "border-box",
+  },
+  button: {
+    padding: "10px 15px",
+    borderRadius: 5,
+    border: "none",
+    backgroundColor: "#4caf50",
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 14,
+    cursor: "pointer",
+    transition: "background-color 0.3s",
+  },
+  buttonDisabled: {
+    backgroundColor: "#a5d6a7",
+    cursor: "not-allowed",
+  },
+  messageSuccess: {
+    marginTop: 12,
+    color: "green",
+    fontWeight: "bold",
+  },
+  messageError: {
+    marginTop: 12,
+    color: "red",
+    fontWeight: "bold",
+  },
+};
 
-  const handleSetMinterClick = async () => {
+const GrantMinterRole: React.FC = () => {
+  const [walletAddress, setWalletAddress] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const handleGrantMinter = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
+
     try {
-      const AdminPrivateKey = process.env.REACT_APP_ADMIN_PRIVATE_KEY;
-      if (!AdminPrivateKey) {
-        throw new Error("Admin private key is not set in environment variables.");
+      const res = await fetch("http://localhost:5000/set-minter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress }),
+      });
+
+      const data: ApiResponse = await res.json();
+
+      if (data.success) {
+        setMessage(`Minter role granted! Transaction hash: ${data.txHash}`);
+      } else {
+        setMessage(`Error: ${data.error ?? "Failed to grant role"}`);
       }
-
-      const provider = new ethers.JsonRpcProvider("https://bsc-testnet-rpc.publicnode.com");
-      const adminWallet = new ethers.Wallet(AdminPrivateKey, provider);
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, adminWallet);
-
-      const tx = await contract.setMinter(minterAddress, isMinterStatus);
-      await tx.wait();
-
-      setStatusMsg(`✅ setMinter(${minterAddress}, ${isMinterStatus}) executed successfully.`);
     } catch (err: any) {
-      console.error(err);
-      setStatusMsg("❌ Error: " + (err.message || "Unknown error"));
+      setMessage(`Request error: ${err.message}`);
     }
+
+    setLoading(false);
   };
 
   return (
-    <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-md space-y-4">
-      <h2 className="text-xl font-bold">Set Minter</h2>
-
-      <input
-        type="text"
-        value={minterAddress}
-        onChange={(e) => setMinterAddress(e.target.value)}
-        placeholder="Minter Address"
-        className="w-full border p-2 rounded"
-      />
-
-      <label className="flex items-center space-x-2">
+    <div style={styles.container}>
+      <h3 style={styles.heading}>Grant Minter Role</h3>
+      <form onSubmit={handleGrantMinter}>
         <input
-          type="checkbox"
-          checked={isMinterStatus}
-          onChange={() => setIsMinterStatus(!isMinterStatus)}
+          type="text"
+          placeholder="Enter wallet address"
+          value={walletAddress}
+          onChange={(e) => setWalletAddress(e.target.value)}
+          required
+          style={styles.input}
         />
-        <span>{isMinterStatus ? "Enable Minter" : "Disable Minter"}</span>
-      </label>
-
-      <button
-        onClick={handleSetMinterClick}
-        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-      >
-        Set Minter
-      </button>
-
-      {statusMsg && <p className="mt-4 text-sm text-gray-700">{statusMsg}</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          style={loading ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
+        >
+          {loading ? "Granting..." : "Grant Minter Role"}
+        </button>
+      </form>
+      {message && (
+        <p style={message.startsWith("Error") ? styles.messageError : styles.messageSuccess}>
+          {message}
+        </p>
+      )}
     </div>
   );
 };
 
-export default SetMinterUI;
+export default GrantMinterRole;
